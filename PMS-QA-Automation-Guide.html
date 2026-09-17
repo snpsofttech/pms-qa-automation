@@ -1,0 +1,244 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>PMS QA Automation — Beginner's Guide</title>
+<style>
+  :root{
+    --ink:#1c2430; --muted:#5d6773; --line:#dbe0e8; --accent:#1d5b8c; --accent2:#2f7d55;
+    --code-bg:#f4f6f9; --box:#f0f5fa; --warn:#fff6e8; --warnline:#e8cf9a;
+  }
+  *{box-sizing:border-box}
+  html{font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:var(--ink);font-size:12px;line-height:1.55}
+  body{margin:0}
+  h1{font-size:27px;margin:0 0 6px}
+  h2{font-size:18px;margin:24px 0 8px;color:var(--accent);border-bottom:2px solid var(--line);padding-bottom:5px}
+  h3{font-size:14px;margin:16px 0 4px;color:#243447}
+  p{margin:7px 0}
+  code{background:var(--code-bg);padding:1px 5px;border-radius:3px;font-family:"SF Mono",Consolas,monospace;font-size:11px}
+  pre{background:var(--code-bg);border:1px solid var(--line);border-left:3px solid var(--accent);
+      padding:10px 12px;border-radius:5px;overflow-x:auto;font-size:10.5px;line-height:1.5;white-space:pre-wrap;
+      font-family:"SF Mono",Consolas,monospace}
+  .muted{color:var(--muted)}
+  .cover{padding:64px 0 26px;border-bottom:3px solid var(--accent)}
+  .cover .sub{font-size:15px;color:var(--muted);margin-top:8px}
+  .cover .who{margin-top:18px;font-size:11.5px;color:var(--muted)}
+  ul,ol{margin:7px 0 7px 20px;padding:0}
+  li{margin:4px 0}
+  table{border-collapse:collapse;width:100%;margin:10px 0;font-size:11px}
+  th,td{border:1px solid var(--line);padding:6px 9px;text-align:left;vertical-align:top}
+  th{background:#eaf0f6;font-weight:600}
+  .box{background:var(--box);border:1px solid #cfe0ee;border-radius:6px;padding:10px 14px;margin:12px 0}
+  .analogy{background:#f2f8f3;border:1px solid #cbe4d3;border-radius:6px;padding:10px 14px;margin:12px 0}
+  .analogy b{color:var(--accent2)}
+  .warn{background:var(--warn);border:1px solid var(--warnline);border-radius:6px;padding:10px 14px;margin:12px 0}
+  .pagebreak{break-before:page}
+  .flow{margin:14px 0}
+  .step{display:flex;align-items:flex-start;gap:10px;margin:6px 0}
+  .num{flex:0 0 22px;height:22px;border-radius:50%;background:var(--accent);color:#fff;font-weight:700;
+       display:flex;align-items:center;justify-content:center;font-size:11px;margin-top:1px}
+  .step .txt{flex:1}
+  .kicker{font-size:10.5px;text-transform:uppercase;letter-spacing:.8px;color:var(--muted);font-weight:700}
+  footer{margin-top:30px;border-top:1px solid var(--line);padding-top:8px;font-size:10px;color:var(--muted)}
+  .term{font-weight:700;color:#243447}
+</style>
+</head>
+<body>
+
+<div class="cover">
+  <div class="kicker">Onboarding Guide</div>
+  <h1>How the PMS QA Automation Works</h1>
+  <div class="sub">A plain-language walkthrough for someone seeing this project for the first time</div>
+  <div class="who">
+    You do <b>not</b> need prior Playwright or testing experience to read this. It explains what the
+    project is, why it exists, how it is put together, and how to run it. Technical terms are defined the
+    first time they appear, and there is a glossary at the end.
+  </div>
+</div>
+
+<h2>1. What is this project, in one paragraph?</h2>
+<p>
+<span class="term">pms-qa-automation</span> is a separate project whose only job is to <b>automatically test the
+PMS application and report bugs</b>. It logs into the real apps and calls the real backend services the way a
+user or the frontend would, checks that they behave correctly, and writes up anything that looks wrong. It
+never changes the application's code and never fixes bugs on its own — it is an independent inspector, not a
+mechanic.
+</p>
+<div class="analogy">
+  <b>Analogy.</b> Think of the PMS platform as a building. This project is the <b>building inspector</b> who walks
+  through every room, tries every lock, and files a report on what's broken. The inspector doesn't repair
+  anything — they hand the report to the builders.
+</div>
+
+<h2>2. What does "PMS" look like, so the tests make sense?</h2>
+<p>The thing being tested has three parts:</p>
+<table>
+  <tr><th>Part</th><th>What it is</th><th>Address (on staging)</th></tr>
+  <tr><td><b>Admin frontend</b></td><td>The web app staff use</td><td><code>/admin</code></td></tr>
+  <tr><td><b>Client frontend</b></td><td>The web app customers use</td><td><code>/client</code></td></tr>
+  <tr><td><b>15 backend services</b></td><td>Small programs that store and serve data (auth, jobs, invoices, contacts, …)</td><td>one shared web address, different path per service</td></tr>
+</table>
+<p>
+Two ideas matter for the rest of this guide:
+</p>
+<ul>
+  <li><span class="term">Multi-tenant</span>: many separate customer organisations ("tenants") share the same
+  system, and each must <b>only ever see its own data</b>. A huge part of testing is proving Tenant A can't
+  see or touch Tenant B's data.</li>
+  <li><span class="term">Token-based login</span>: after you log in, the server gives your browser a signed
+  pass (a "token"). Every later request carries that token so the server knows who you are and which tenant
+  you belong to.</li>
+</ul>
+
+<h2>3. What kinds of things does the automation check?</h2>
+<table>
+  <tr><th>Test type</th><th>Question it answers</th></tr>
+  <tr><td><b>Smoke tests</b></td><td>"Is everything switched on?" Do the apps load, do the login screens appear, does each of the 15 services respond?</td></tr>
+  <tr><td><b>Auth-boundary tests</b></td><td>"Are the doors locked?" Does every service reject a request that has no valid login token?</td></tr>
+  <tr><td><b>Tenant-isolation tests</b></td><td>"Can one customer peek at another's data?" Logged in as Tenant A, try to read/change Tenant B's records — and expect to be refused.</td></tr>
+  <tr><td><b>Critical-flow tests</b></td><td>"Do the important journeys work end to end?" e.g. admin logs in, creates a job, and the job shows up.</td></tr>
+</table>
+
+<div class="pagebreak"></div>
+<h2>4. The tools it uses</h2>
+<ul>
+  <li><span class="term">Playwright</span> — the testing tool. It can both drive a real web browser (click,
+  type, read the screen) <i>and</i> call backend services directly. Using one tool for both keeps everything in
+  a single report. It's the only major dependency.</li>
+  <li><span class="term">TypeScript</span> — the language the tests are written in (JavaScript with type
+  checking, which catches mistakes before the tests even run).</li>
+</ul>
+
+<h2>5. A tour of the project folders</h2>
+<p>Everything lives under <code>pms-qa-automation/</code>. Here is what each folder is for:</p>
+<table>
+  <tr><th>Folder / file</th><th>What's inside</th></tr>
+  <tr><td><code>tests/</code></td><td>The actual tests, grouped by kind: <code>smoke/</code>, <code>admin/</code>, <code>client/</code>, <code>api/</code> (with <code>auth/</code> and <code>tenancy/</code>), and <code>integration/</code> (the critical flows).</td></tr>
+  <tr><td><code>pages/</code></td><td><span class="term">Page Objects</span> — one file per screen (e.g. the admin login page). They hold the "how to find the email box and click Login" details, so if a screen changes you fix it in one place. Tests read cleanly: <code>loginPage.loginAs(email, password)</code>.</td></tr>
+  <tr><td><code>fixtures/</code></td><td>Reusable setup handed to tests automatically — e.g. "give me a browser that is already logged in as the admin," or "give me Tenant A and Tenant B identities."</td></tr>
+  <tr><td><code>helpers/</code></td><td>Shared toolbox: the API client, environment config, the service list, result assertions, and the bug-report writer.</td></tr>
+  <tr><td><code>scripts/</code></td><td>Run-once helpers: global setup/teardown, and the HTML→PDF report generators.</td></tr>
+  <tr><td><code>bug-reports/</code></td><td>The output that matters — one Markdown file per confirmed bug, kept as a durable record.</td></tr>
+  <tr><td><code>playwright.config.ts</code></td><td>The master settings file: which groups of tests exist, timeouts, and what evidence to capture on failure.</td></tr>
+  <tr><td><code>.env.staging</code></td><td>The addresses and QA login details for the staging environment. Kept out of version control because it holds passwords.</td></tr>
+  <tr><td><code>ARCHITECTURE.md / CHARTER.md / README.md</code></td><td>Reference docs: how the app is built, the rules QA must follow, and how to run things.</td></tr>
+</table>
+
+<h2>6. What happens, step by step, when you run the tests</h2>
+<div class="flow">
+  <div class="step"><div class="num">1</div><div class="txt"><b>Config loads.</b> <code>playwright.config.ts</code> reads which environment you asked for (via <code>TEST_ENV</code>) and loads the matching <code>.env</code> file — the URLs and QA credentials.</div></div>
+  <div class="step"><div class="num">2</div><div class="txt"><b>Global setup runs once.</b> It confirms the QA logins actually work, so if a password is wrong you get one clear error instead of every test failing mysteriously.</div></div>
+  <div class="step"><div class="num">3</div><div class="txt"><b>Each test gets its fixtures.</b> If a test asks for an "admin browser," the fixture logs in first and hands over a ready-to-use, authenticated page. The test doesn't repeat login code.</div></div>
+  <div class="step"><div class="num">4</div><div class="txt"><b>The test does its checks.</b> It clicks/types in the browser, or calls a service, then <i>asserts</i> — states what must be true (e.g. "this must return 401"). If reality differs, the test fails.</div></div>
+  <div class="step"><div class="num">5</div><div class="txt"><b>Evidence is captured on failure.</b> A screenshot, a video, and a "trace" (a step-by-step replay incl. network calls) are saved automatically — no guesswork about what went wrong.</div></div>
+  <div class="step"><div class="num">6</div><div class="txt"><b>A bug report is written.</b> Security tests write a precise, pre-classified report; any other failure gets an automatic "needs investigation" skeleton. Nothing fails silently.</div></div>
+  <div class="step"><div class="num">7</div><div class="txt"><b>Cleanup + summary.</b> Any test data the run created is removed, and you get a pass/fail summary plus an HTML report you can open in a browser.</div></div>
+</div>
+
+<div class="pagebreak"></div>
+<h2>7. How login works inside the tests</h2>
+<p>
+Because almost everything needs a logged-in user, the project handles login in reusable <b>fixtures</b> so
+individual tests stay short:
+</p>
+<ul>
+  <li><b>API sessions</b> — for backend tests, the fixture calls the login endpoint once and keeps the token.
+  A test then says <code>apis.jobs.as(adminSession).get('/…')</code> — "call the jobs service as this admin."</li>
+  <li><b>Browser sessions</b> — for UI tests, the fixture opens the login page, fills it in, and hands back a
+  browser that's already inside the app.</li>
+  <li><b>Two tenants</b> — a special fixture provides Tenant A and Tenant B side by side, which is exactly
+  what isolation tests need: do something as A, prove B is unaffected (and vice-versa).</li>
+</ul>
+<div class="box">
+  <b>Why two tenants?</b> You cannot prove "customers are isolated from each other" with only one customer.
+  Isolation tests always need a second, independent tenant to attempt (and be denied) access to.
+</div>
+
+<h2>8. What a real test looks like (annotated)</h2>
+<p>This is the shape of an auth-boundary test — readable even if you've never seen the codebase:</p>
+<pre>test('jobs-backend rejects an unauthenticated request', async ({ request }) =&gt; {
+  // Call the jobs service WITHOUT a login token:
+  const response = await apiClients(request).jobs.get('/workflow/jobs/jobs');
+
+  // State what MUST be true. 401 means "Unauthorized" — the door is locked.
+  expect(response.status()).toBe(401);
+});</pre>
+<p>
+If the service wrongly answered <code>200</code> (success) to a request with no token, this line fails, and the
+report flags an open door. That is literally how three real security gaps in this project were caught.
+</p>
+
+<h2>9. Environments and the safety rules</h2>
+<p>The same tests can point at different environments, chosen by the <code>TEST_ENV</code> setting:</p>
+<table>
+  <tr><th>Environment</th><th>Meaning</th><th>Safety</th></tr>
+  <tr><td><code>local</code></td><td>Services running on your own machine</td><td>Anything goes</td></tr>
+  <tr><td><code>staging</code></td><td>A test copy of the live system</td><td>Safe to create/modify QA data</td></tr>
+  <tr><td><code>production</code></td><td>The real, customer-facing system</td><td><b>Hard-blocked.</b> Tests refuse to run against production unless someone very deliberately overrides it, and even then only read-only smoke checks are allowed.</td></tr>
+</table>
+<div class="warn">
+  <b>Golden rules the project enforces.</b> QA never edits application code to "fix" a bug — it reports it.
+  Any data the tests create is clearly QA-labelled, tracked, and cleaned up. Production is never modified.
+  These aren't just guidelines; they're built into the framework (e.g. destructive helpers throw an error if
+  pointed at production).
+</div>
+
+<h2>10. How to run it (copy-paste)</h2>
+<p>Open a terminal in the project folder first:</p>
+<pre>cd "C:/PMS Multitenant/pms-qa-automation"</pre>
+<p><b>First time only</b> — install the tool and a browser:</p>
+<pre>npm install
+npm run install:browsers</pre>
+<p><b>Run the whole suite against staging:</b></p>
+<pre>npm run test:staging</pre>
+<p><b>Run just one group</b> (faster while you're focused):</p>
+<pre>npm run test:staging -- --project=smoke-api      # backend health only
+npm run test:staging -- --grep-invert "isolation" # everything except cross-tenant tests</pre>
+<p><b>See the visual report after a run:</b></p>
+<pre>npm run report</pre>
+
+<h2>11. How to read the results</h2>
+<ul>
+  <li><b>Passed</b> — the check held; the behaviour is correct.</li>
+  <li><b>Failed</b> — reality didn't match what the test required. A bug report and evidence are saved.</li>
+  <li><b>Skipped / Blocked</b> — the test couldn't run meaningfully yet (e.g. missing test data, or a step
+  deliberately gated for safety). This is <i>not</i> the same as a failure.</li>
+</ul>
+<p>
+Failures point you to <code>bug-reports/</code> (the written findings) and <code>test-results/</code>
+(screenshots, videos, traces). A run that shows failures is often the automation doing its job — the current
+staging run is green apart from the genuine open bugs it is meant to keep flagging.
+</p>
+
+<div class="pagebreak"></div>
+<h2>12. Glossary</h2>
+<table>
+  <tr><th>Term</th><th>Plain meaning</th></tr>
+  <tr><td>Playwright</td><td>The testing tool that drives browsers and calls services.</td></tr>
+  <tr><td>Test / spec</td><td>A single automated check, written in a <code>.spec.ts</code> file.</td></tr>
+  <tr><td>Assertion (<code>expect</code>)</td><td>A statement of what must be true; if it isn't, the test fails.</td></tr>
+  <tr><td>Fixture</td><td>Reusable setup automatically provided to a test (e.g. a logged-in browser).</td></tr>
+  <tr><td>Page Object</td><td>A file that hides the details of one screen so tests read simply.</td></tr>
+  <tr><td>Token</td><td>The signed pass proving who you are on each request after login.</td></tr>
+  <tr><td>Tenant</td><td>One customer organisation; its data must stay private from other tenants.</td></tr>
+  <tr><td>Endpoint</td><td>A specific address on a backend service, e.g. <code>/api/auth/login</code>.</td></tr>
+  <tr><td>Status code</td><td>The server's short answer: 200 = OK, 401 = not logged in, 403/404 = not allowed / not found, 500 = server error.</td></tr>
+  <tr><td>Smoke test</td><td>A quick "is it switched on and responding?" check.</td></tr>
+  <tr><td>Trace</td><td>A recorded step-by-step replay of a test, incl. network activity, for debugging.</td></tr>
+  <tr><td>Environment</td><td>Which copy of the system you're testing: local, staging, or production.</td></tr>
+</table>
+
+<h2>13. Where to go next</h2>
+<ul>
+  <li><code>README.md</code> — the practical run guide and command reference.</li>
+  <li><code>ARCHITECTURE.md</code> — how the PMS system is built (routes, login, tenancy), the ground truth the tests rely on.</li>
+  <li><code>CHARTER.md</code> — the rules: what QA may and may not do.</li>
+  <li><code>bug-reports/</code> — the findings so far, each with reproduction steps and evidence.</li>
+</ul>
+
+<footer>
+  PMS QA Automation — beginner's guide. Generated for onboarding; pair it with the README for hands-on commands.
+</footer>
+
+</body>
+</html>

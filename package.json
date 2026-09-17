@@ -1,0 +1,26 @@
+{
+  "name": "pms-qa-automation",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Independent Playwright QA automation suite for the PMS Multitenant platform (admin frontend, client frontend, and backend microservices).",
+  "scripts": {
+    "test": "playwright test",
+    "test:smoke": "playwright test --project=smoke-admin --project=smoke-client --project=smoke-api",
+    "test:admin": "playwright test --project=admin",
+    "test:client": "playwright test --project=client",
+    "test:api": "playwright test --project=api",
+    "test:integration": "playwright test --project=integration",
+    "test:tenancy": "playwright test tests/api/tenancy",
+    "test:staging": "cross-env TEST_ENV=staging playwright test",
+    "test:production": "cross-env TEST_ENV=production playwright test --project=smoke-admin --project=smoke-client --project=smoke-api",
+    "report": "playwright show-report",
+    "install:browsers": "playwright install --with-deps chromium"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.48.0",
+    "@types/node": "^22.7.0",
+    "cross-env": "^7.0.3",
+    "dotenv": "^16.4.5",
+    "typescript": "^5.6.0"
+  }
+}

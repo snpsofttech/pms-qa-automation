@@ -1,0 +1,13 @@
+node_modules/
+.env
+.env.local
+.env.staging
+.env.production
+.auth/
+playwright-report/
+test-results/
+blob-report/
+playwright/.cache/
+qa-data/
+*.log
+PMS.txt

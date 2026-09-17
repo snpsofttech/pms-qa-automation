@@ -1,0 +1,352 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>PMS QA Automation — Security &amp; Bug Report</title>
+<style>
+  :root{
+    --ink:#1a1f29; --muted:#5b6472; --line:#d9dee6; --bg:#fff;
+    --p0:#b3261e; --p1:#c8641b; --p2:#b58900; --p3:#4a6b8a; --ok:#1f7a4d;
+    --code-bg:#f5f6f8; --accent:#20406b;
+  }
+  *{box-sizing:border-box}
+  html{font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:var(--ink);font-size:12px;line-height:1.5}
+  body{margin:0}
+  h1{font-size:26px;margin:0 0 4px}
+  h2{font-size:17px;margin:26px 0 8px;color:var(--accent);border-bottom:2px solid var(--line);padding-bottom:4px}
+  h3{font-size:13.5px;margin:16px 0 4px}
+  p{margin:6px 0}
+  code,pre{font-family:"SF Mono",Consolas,"Roboto Mono",monospace}
+  code{background:var(--code-bg);padding:1px 4px;border-radius:3px;font-size:11px}
+  pre{background:var(--code-bg);border:1px solid var(--line);border-left:3px solid var(--accent);
+      padding:9px 11px;border-radius:4px;overflow-x:auto;font-size:10.5px;line-height:1.45;white-space:pre-wrap}
+  .muted{color:var(--muted)}
+  .cover{padding:60px 0 30px;border-bottom:3px solid var(--accent)}
+  .cover .sub{font-size:14px;color:var(--muted);margin-top:6px}
+  .meta{margin-top:22px;font-size:11px;color:var(--muted)}
+  table{border-collapse:collapse;width:100%;margin:10px 0;font-size:11px}
+  th,td{border:1px solid var(--line);padding:6px 8px;text-align:left;vertical-align:top}
+  th{background:#eef1f5;font-weight:600}
+  .badge{display:inline-block;color:#fff;font-weight:700;padding:1px 7px;border-radius:10px;font-size:10px;letter-spacing:.3px}
+  .b-p0{background:var(--p0)} .b-p1{background:var(--p1)} .b-p2{background:var(--p2)} .b-p3{background:var(--p3)}
+  .b-ok{background:var(--ok)}
+  .bug{border:1px solid var(--line);border-radius:6px;padding:2px 16px 12px;margin:14px 0;break-inside:avoid}
+  .bug h3{display:flex;align-items:center;gap:8px}
+  .kv{font-size:11px;margin:2px 0}
+  .kv b{display:inline-block;min-width:96px;color:var(--muted);font-weight:600}
+  .tag-fixed{color:var(--ok);font-weight:700}
+  .tag-open{color:var(--p0);font-weight:700}
+  .tag-closed{color:var(--muted);font-weight:700}
+  .callout{background:#fbf3f2;border:1px solid #e6c9c6;border-radius:5px;padding:8px 12px;margin:10px 0}
+  .callout.ok{background:#eef7f1;border-color:#c3e0cf}
+  ol,ul{margin:6px 0 6px 18px;padding:0}
+  li{margin:3px 0}
+  .pagebreak{break-before:page}
+  footer{margin-top:30px;border-top:1px solid var(--line);padding-top:8px;font-size:10px;color:var(--muted)}
+  .del{color:var(--p0)} .add{color:var(--ok)}
+</style>
+</head>
+<body>
+
+<div class="cover">
+  <h1>PMS Multitenant — QA Automation &amp; Security Report</h1>
+  <div class="sub">Cross-tenant vulnerabilities, authentication gaps, and the QA framework built to catch them</div>
+  <div class="meta">
+    Prepared: 2026-09-12 &nbsp;·&nbsp; Environment tested: <b>staging</b> (production untouched)<br>
+    Systems: pms-frontend-multitenant (admin), pms-client-multitenant (client), 15 backend microservices<br>
+    Method: read-only source inspection + live black-box testing with two isolated QA tenants
+  </div>
+</div>
+
+<h2>Executive summary</h2>
+<p>
+An independent QA automation suite (Playwright + TypeScript) was built to test the PMS platform and
+report defects. Run against staging, it confirmed <b>eight application issues</b>, four of them
+security-critical, plus several supporting observations.
+</p>
+<p>
+The most serious is a <b>multi-tenant isolation failure</b> in <code>account-contact-backend</code>:
+any authenticated admin could read and modify <i>another tenant's</i> accounts and contacts, and — chained
+with a credential-exposure bug and a public password-set endpoint — take over another tenant's client
+accounts entirely. The root cause is a single, easily-overlooked coding idiom repeated across one service.
+This vulnerability has been <b>fixed in the local codebase</b> (not yet deployed) with regression tests added.
+</p>
+<table>
+  <tr><th>#</th><th>Severity</th><th>Component</th><th>Issue</th><th>Status</th></tr>
+  <tr><td>1</td><td><span class="badge b-p0">P0</span></td><td>account-contact-backend</td><td>Cross-tenant read of accounts/contacts</td><td class="tag-fixed">Fixed (local)</td></tr>
+  <tr><td>2</td><td><span class="badge b-p0">P0</span></td><td>account-contact-backend</td><td>Cross-tenant write (7 handlers)</td><td class="tag-fixed">Fixed (local)</td></tr>
+  <tr><td>3</td><td><span class="badge b-p0">P0</span></td><td>account-contact-backend</td><td>Password hashes &amp; activation tokens in API responses</td><td class="tag-open">Open</td></tr>
+  <tr><td>4</td><td><span class="badge b-p1">P1</span></td><td>client-sidebar-backend</td><td>No authentication on any route</td><td class="tag-open">Open</td></tr>
+  <tr><td>5</td><td><span class="badge b-p1">P1</span></td><td>sidebar-backend</td><td><code>/api/newsidebar</code> routes unauthenticated</td><td class="tag-open">Open</td></tr>
+  <tr><td>6</td><td><span class="badge b-p1">P1</span></td><td>folder-mangement</td><td><code>/tempfolder/docManagement</code> router unauthenticated</td><td class="tag-open">Open</td></tr>
+  <tr><td>7</td><td><span class="badge b-p2">P2</span></td><td>jobs-backend</td><td><code>/jobs/count</code> &amp; <code>/jobs/list</code> always 500</td><td class="tag-open">Open</td></tr>
+  <tr><td>8</td><td><span class="badge b-p3">P3</span></td><td>nginx (staging)</td><td>Bare <code>/admin</code>, <code>/client</code> serve default page</td><td class="tag-open">Open</td></tr>
+</table>
+<p class="muted">
+  Severity: <b>P0</b> critical (security / data loss) · <b>P1</b> major · <b>P2</b> broken with workaround · <b>P3</b> cosmetic / config.
+</p>
+
+<div class="pagebreak"></div>
+<h2>The bugs, in detail</h2>
+
+<div class="bug">
+  <h3><span class="badge b-p0">P0</span> #1 — Cross-tenant READ of accounts and contacts</h3>
+  <div class="kv"><b>Component</b> account-contact-backend</div>
+  <div class="kv"><b>Endpoints</b> <code>GET /api/clientaccounts/:id</code>, <code>GET /api/contacts/contact/:id</code></div>
+  <div class="kv"><b>Status</b> <span class="tag-fixed">Fixed in local working copy (undeployed)</span></div>
+
+  <h3>What it is</h3>
+  <p>The platform is multi-tenant: every account, contact and record carries a <code>tenantId</code>, and a user
+  should only ever see data belonging to their own tenant. This endpoint ignored that boundary — an admin
+  logged into <i>Tenant A</i> could fetch <i>Tenant B's</i> account or contact simply by knowing (or guessing) its ID.</p>
+
+  <h3>Root cause</h3>
+  <p>The handler tried to scope the query to the tenant, but did so incorrectly:</p>
+  <pre><span class="del">// BROKEN</span>
+const account = await Account.findById({ _id: accountId, tenantId: req.user.tenantId });</pre>
+  <p>In Mongoose, <code>findById(x)</code> is shorthand for <code>findOne({ _id: x })</code>. When <code>x</code> is an
+  <i>object</i>, Mongoose casts it to an ObjectId by reading its <code>_id</code> property and <b>silently discards every
+  other key</b> — so <code>tenantId</code> was thrown away and the query became "find by id, any tenant." It <i>looks</i>
+  tenant-scoped on the screen, which is exactly why it survived code review for months.</p>
+  <pre><span class="add">// FIXED</span>
+const account = await Account.findOne({ _id: accountId, tenantId: req.user.tenantId });</pre>
+  <p>The proof it was a mistake, not a design choice: the <i>list</i> endpoints in the same service use
+  <code>find({ tenantId })</code> correctly and are properly isolated.</p>
+
+  <h3>Impact</h3>
+  <p>Confidentiality breach across tenants — names, contact details, company data, account structure of unrelated
+  customers. Also the first link in the account-takeover chain (see #3).</p>
+
+  <h3>How it was detected</h3>
+  <p>Spotted by source inspection, then proven live: as Tenant A, <code>GET</code> of Tenant B's account and contact IDs
+  both returned <b>HTTP 200 with the other tenant's data</b>, in both directions.</p>
+</div>
+
+<div class="bug">
+  <h3><span class="badge b-p0">P0</span> #2 — Cross-tenant WRITE (modify / attach / detach / archive)</h3>
+  <div class="kv"><b>Component</b> account-contact-backend</div>
+  <div class="kv"><b>Handlers</b> updateAccount, updateContactwithoutPassword, uploadProfilePicture, toggleContactLogin, addContactsToAccount, removeContactFromAccount, updateAccountActiveStatus</div>
+  <div class="kv"><b>Status</b> <span class="tag-fixed">Fixed in local working copy (undeployed)</span></div>
+
+  <h3>What it is</h3>
+  <p>The same missing boundary, but on <i>write</i> operations: an admin of one tenant could edit another tenant's
+  account fields, change a contact's permissions, attach or remove contacts, upload a profile picture, or
+  bulk-archive accounts that don't belong to them.</p>
+
+  <h3>Root cause</h3>
+  <p>Two variants of the same class of mistake:</p>
+  <p><b>(a) Object passed to <code>findByIdAndUpdate</code></b> — identical casting flaw as #1, but on an update:</p>
+  <pre><span class="del">// BROKEN — tenantId dropped; writes to any tenant's record</span>
+await Account.findByIdAndUpdate({ _id: req.params.id, tenantId: req.user.tenantId },
+                                { $set: req.body });
+<span class="add">// FIXED — tenantId enforced in filter; _id/tenantId stripped from body</span>
+const { _id, tenantId, ...updates } = req.body;
+await Account.findOneAndUpdate({ _id: req.params.id, tenantId: req.user.tenantId },
+                               { $set: updates });</pre>
+  <p><b>(b) <code>tenantId</code> in the wrong position</b> in a bulk update:</p>
+  <pre><span class="del">// BROKEN — filter matches ANY tenant; the stray tenantId key
+// would be folded into the update, reassigning matched accounts</span>
+await Account.updateMany({ _id: { $in: ids } },
+                         { $set: { active }, tenantId: req.user.tenantId });
+<span class="add">// FIXED — tenantId is part of the filter</span>
+await Account.updateMany({ _id: { $in: ids }, tenantId: req.user.tenantId },
+                         { $set: { active } });</pre>
+
+  <h3>Impact</h3>
+  <p>Integrity breach: tampering with another tenant's data. The bulk-archive variant additionally risked
+  <b>reassigning</b> another tenant's accounts into the attacker's tenant (the stray <code>tenantId</code> key). And
+  <code>updateAccount</code>'s <code>$set: req.body</code> was an unfiltered mass-assignment — a caller could set fields
+  they should never control.</p>
+
+  <h3>How it was detected &amp; confirmed</h3>
+  <p>Found by auditing every write handler in the service. Confirmed by <b>one controlled, reversible probe</b>:
+  as Tenant A, a single benign field (<code>clientType</code>) on Tenant B's account was changed → HTTP 200 → verified
+  as Tenant B that it changed → restored to the original value. No data left altered; only disposable QA tenants used.</p>
+</div>
+
+<div class="bug">
+  <h3><span class="badge b-p0">P0</span> #3 — Password hashes and activation tokens exposed in API responses</h3>
+  <div class="kv"><b>Component</b> account-contact-backend</div>
+  <div class="kv"><b>Endpoint</b> <code>GET /api/contacts/contact/:id</code></div>
+  <div class="kv"><b>Status</b> <span class="tag-open">Open</span></div>
+
+  <h3>What it is</h3>
+  <p>The contact-detail response includes the contact's <b>bcrypt password hash</b> and, for any not-yet-activated
+  contact, the raw <b>activation token</b> — neither of which should ever leave the server.</p>
+
+  <h3>Root cause</h3>
+  <p><code>getContactById</code> returns the raw Mongoose document with no field projection, and the schema declares
+  <code>password</code> and <code>activationToken</code> as ordinary fields (no <code>select:false</code>, no
+  <code>toJSON</code> transform to strip them). So they serialize straight into JSON.</p>
+  <pre><span class="add">// Recommended fix (schema)</span>
+password:        { type: String, select: false },
+activationToken: { type: String, select: false },
+// plus a toJSON transform that deletes them, as defense in depth</pre>
+
+  <h3>Impact</h3>
+  <p>Password hashes are offline-crackable. Activation tokens are live credentials — anyone holding one can set
+  that account's password. This is the second link in the takeover chain below.</p>
+
+  <h3>How it was detected</h3>
+  <p>Observed directly in the JSON body when reading a contact. (A first version of the QA test missed it — see the
+  "false negative" note under QA-framework bugs.)</p>
+</div>
+
+<div class="callout">
+  <b>The account-takeover chain.</b> Bugs #1 + #3 combine with a <i>public</i> (unauthenticated)
+  <code>POST /api/contacts/activate/set-password/:token</code> endpoint into full takeover of another tenant's client
+  accounts:
+  <ol>
+    <li>Read a foreign tenant's contact by ID (<b>#1</b>).</li>
+    <li>Extract its activation token from the response (<b>#3</b>).</li>
+    <li>Set a password of your choosing via the public endpoint.</li>
+    <li>Log in to the victim tenant's client portal as that contact.</li>
+  </ol>
+  Bug #2's <code>toggleContactLogin</code> even mints a <i>fresh</i> token on demand, so already-activated contacts are
+  reachable too. Each link was verified individually; the end-to-end takeover was deliberately <b>not</b> executed
+  across tenants. Fixing the tenant scoping (#1/#2) breaks the chain at step 1; fixing #3 breaks it at step 2 — both
+  should be done.
+</div>
+
+<div class="pagebreak"></div>
+
+<div class="bug">
+  <h3><span class="badge b-p1">P1</span> #4 — client-sidebar-backend has no authentication at all</h3>
+  <div class="kv"><b>Endpoints</b> <code>GET/POST/PATCH/DELETE /clientsidebar/…</code></div>
+  <div class="kv"><b>Status</b> <span class="tag-open">Open</span></div>
+  <h3>What it is &amp; root cause</h3>
+  <p>Every route in this service responds to unauthenticated requests. The service has no auth middleware anywhere —
+  no JWT verification, no <code>protect</code>. Confirmed live: <code>GET /clientsidebar/</code> returns 200 with a JSON
+  body and no token supplied.</p>
+  <h3>Impact</h3>
+  <p>Anyone on the internet can read and modify sidebar/navigation data. Control comparison: other services correctly
+  return 401 unauthenticated on the same host, so this is a per-service gap, not a global misconfiguration.</p>
+</div>
+
+<div class="bug">
+  <h3><span class="badge b-p1">P1</span> #5 — sidebar-backend <code>/api/newsidebar</code> routes unauthenticated</h3>
+  <div class="kv"><b>Status</b> <span class="tag-open">Open</span></div>
+  <h3>What it is &amp; root cause</h3>
+  <p>This service <i>does</i> have the <code>protect</code> middleware and applies it to one route
+  (<code>GET /api/sidebar/</code>), but the entire <code>/api/newsidebar</code> router — including write routes — has no
+  <code>protect</code> applied. An unauthenticated write reaches the database layer (observed as a schema-validation
+  400 rather than a 401, proving it passed the auth layer that should have stopped it).</p>
+  <h3>Impact</h3>
+  <p>Unauthenticated read and write of sidebar configuration affecting the app's navigation for all users.</p>
+</div>
+
+<div class="bug">
+  <h3><span class="badge b-p1">P1</span> #6 — folder-mangement <code>/tempfolder/docManagement</code> router unauthenticated</h3>
+  <div class="kv"><b>Status</b> <span class="tag-open">Open</span></div>
+  <h3>What it is &amp; root cause</h3>
+  <p>This service is otherwise protected — four of its five routers apply <code>protect</code> — but the
+  <code>docManagement</code> router was mounted without it. Confirmed live: <code>GET /tempfolder/docManagement/list</code>
+  returns 200 with no token, while <code>GET /accounts/docs/list</code> on the <i>same service</i> correctly returns 401.</p>
+  <h3>Impact</h3>
+  <p>Unauthenticated access to document-management operations (list, and the router's write routes: folder/file upload,
+  delete, move, rename). Easy to miss precisely because the rest of the service is protected.</p>
+</div>
+
+<div class="bug">
+  <h3><span class="badge b-p2">P2</span> #7 — jobs-backend: <code>/jobs/count</code> and <code>/jobs/list</code> always return 500</h3>
+  <div class="kv"><b>Status</b> <span class="tag-open">Open</span></div>
+  <h3>What it is &amp; root cause</h3>
+  <p>Classic Express <b>route shadowing</b>. The parameterised route is registered before the literal ones:</p>
+  <pre>router.route("/jobs/:id")      // registered first — matches "/jobs/count"
+router.get("/jobs/count", …)   // never reached
+router.get("/jobs/list",  …)   // never reached</pre>
+  <p>A request to <code>/jobs/count</code> is captured by <code>/jobs/:id</code> with <code>id = "count"</code>, and Mongoose
+  then throws casting <code>"count"</code> to an ObjectId → HTTP 500. The 3-segment siblings
+  (<code>/jobs/count/active</code>) are unaffected and work, which confirms the diagnosis.</p>
+  <h3>Fix</h3>
+  <p>Declare the literal routes before <code>/jobs/:id</code>. (The proposal service already does exactly this, with a
+  comment — the convention exists, it just wasn't applied here.)</p>
+</div>
+
+<div class="bug">
+  <h3><span class="badge b-p3">P3</span> #8 — Bare <code>/admin</code> and <code>/client</code> serve the nginx default page</h3>
+  <div class="kv"><b>Status</b> <span class="tag-open">Open (nginx config, not app code)</span></div>
+  <h3>What it is &amp; root cause</h3>
+  <p>The apps are only reachable with a trailing slash (<code>/admin/</code>, <code>/client/</code>). The bare paths and
+  the site root return nginx's stock "Welcome to nginx!" page. Consistent with the SPA locations being defined with a
+  trailing slash while a catch-all serves the default root.</p>
+  <h3>Impact</h3>
+  <p>Low, but a user typing or sharing the bare URL sees a broken-looking page. It also masked a QA-side navigation bug
+  (see below).</p>
+</div>
+
+<div class="pagebreak"></div>
+<h2>Related findings (classified, not "bugs to fix")</h2>
+<ul>
+  <li><b>Contact activation emails fail silently</b> — the API returns 201 but no email is sent. Root cause: tenant-scoped
+  email requires the tenant admin's connected Gmail, which new tenants don't have. <span class="tag-closed">Reclassified as
+  EXPECTED BEHAVIOR</span> — the platform intentionally keeps notifications off except for selected accounts. Side effect:
+  invoice and proposal creation hard-fail <code>400 "Please connect Gmail first"</code>, which blocks two critical-flow tests.</li>
+  <li><b>Public <code>activate/set-password/:token</code></b> — unauthenticated by necessity, but it is the final link in the
+  takeover chain; worth reviewing once #1/#3 are fixed.</li>
+  <li><b>Client app logout</b> navigates to <code>/client/login</code>, a route that doesn't exist.</li>
+</ul>
+
+<h2>The fix that was applied (tenancy, #1 &amp; #2)</h2>
+<p>At explicit direction, the tenancy vulnerability was fixed in the <b>local working copy</b> of
+<code>account-contact-backend</code> — uncommitted and undeployed (the running services live on a remote host, so no
+environment was altered):</p>
+<ul>
+  <li><b>10</b> <code>findById({_id, tenantId})</code> reads → <code>findOne({_id, tenantId})</code></li>
+  <li><b>3</b> object-arg <code>findByIdAndUpdate({…})</code> writes → <code>findOneAndUpdate({_id, tenantId})</code>, with
+  <code>_id</code>/<code>tenantId</code> stripped from the mass-assigned body</li>
+  <li><b>1</b> <code>updateMany</code> with <code>tenantId</code> misplaced → moved into the filter</li>
+</ul>
+<p>Verified: no residual object-arg calls, both files pass <code>node --check</code>, and the two legitimate
+string-argument <code>findById()</code> calls were left untouched. A sweep confirmed the idiom exists in <b>no other
+service</b> — the fix is contained. Regression tests were added for cross-tenant reads and all affected write paths; the
+write tests capture-attempt-restore so they are safe to run even against a still-vulnerable target, and are gated behind
+<code>ALLOW_TENANCY_WRITE_PROBES</code> to run after deployment.</p>
+
+<h2>Bugs found in the QA framework itself</h2>
+<p>Running the suite against the real system exposed defects in the test code. Recorded because each silently broke a
+test before it was understood:</p>
+<table>
+  <tr><th>QA bug</th><th>Effect</th><th>Fix</th></tr>
+  <tr><td>Assumed <code>{data:[…]}</code> list envelope</td><td>Real endpoints return bare arrays / <code>{jobList}</code> / <code>{pipeline}</code>; parsing got <code>undefined</code> and a tenancy test <b>skipped past a confirmed P0</b></td><td><code>extractList()</code> normalizer</td></tr>
+  <tr><td>Field-exposure check read top-level keys only</td><td>Record wrapped in <code>{success, data:{…}}</code>; the hash sat one level down → false negative</td><td><code>hasKeyDeep()</code> recursive check</td></tr>
+  <tr><td><code>page.goto('/login')</code></td><td>Leading slash resolves against the origin, discarding the <code>/admin</code> base path → hit nginx's default page</td><td>Navigate via page objects (absolute URLs)</td></tr>
+  <tr><td>Admin login filled only email + password</td><td>Form also requires a duration select and a terms checkbox → login never submitted</td><td>Page object sets all four inputs</td></tr>
+  <tr><td>Paths without trailing slash</td><td>nginx 301; a followed 301 on POST drops the body</td><td><code>maxRedirects:0</code> so it fails loudly</td></tr>
+  <tr><td>Timestamped report filenames / truncated slugs</td><td>Duplicate files each run; distinct failures collapsed into one file</td><td>Stable names; slug from tail + hash</td></tr>
+</table>
+
+<h2>Current suite status (staging, fix not yet deployed)</h2>
+<p><b>56 passed · 6 failed · 13 skipped.</b></p>
+<ul>
+  <li><b>6 failures</b> — the 2 cross-tenant reads (fixed locally, pass once deployed), the field exposure (#3), and the
+  3 auth-boundary gaps (#4–#6). All real and still live on staging.</li>
+  <li><b>13 skipped</b> — 7 gated write probes (run post-deploy), 2 jobs-tenancy (no jobs in Tenant B yet), 4 critical
+  flows (blocked as documented).</li>
+  <li>Both frontends log in and render end-to-end; smoke and auth-boundary pass for the 12 services that enforce auth
+  correctly.</li>
+</ul>
+
+<h2>Recommended next steps</h2>
+<ol>
+  <li>Deploy the <code>account-contact-backend</code> tenancy fix; re-run with <code>ALLOW_TENANCY_WRITE_PROBES=1</code> to confirm reads and all write probes go green.</li>
+  <li>Fix #3 (field exposure) — <code>select:false</code> + <code>toJSON</code> transform. Small, contained, breaks the takeover chain independently.</li>
+  <li>Fix #4–#6 — add the missing <code>protect</code> middleware; the auth-boundary sweep confirms each.</li>
+  <li>Fix #7 (route order) and #8 (nginx trailing slash).</li>
+  <li>Seed a pipeline + job in Tenant A to unblock critical flow 1 and the jobs-tenancy tests.</li>
+  <li>Extend tenancy/functional coverage to the 8 services with only smoke coverage.</li>
+</ol>
+
+<div class="callout ok">
+  <b>Guarantees held throughout.</b> No production system was tested or modified. No application source was changed except
+  the one directed tenancy fix, which remains local and uncommitted. No commits were made in any repository. All test data
+  was created via supported APIs in dedicated QA tenants; no credentials or tokens appear in this report.
+</div>
+
+<footer>
+  PMS QA Automation — generated from the project's bug-reports, ARCHITECTURE.md and CHARTER.md.
+  Per-bug reproduction steps and raw evidence are in the <code>bug-reports/</code> directory of the pms-qa-automation repository.
+</footer>
+
+</body>
+</html>
