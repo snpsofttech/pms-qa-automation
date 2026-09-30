@@ -12,6 +12,13 @@
     "test:integration": "playwright test --project=integration",
     "test:tenancy": "playwright test tests/api/tenancy",
     "test:staging": "cross-env TEST_ENV=staging playwright test",
+    "test:happy": "cross-env TEST_ENV=staging playwright test --grep @happy",
+    "test:e2e": "cross-env TEST_ENV=staging playwright test --grep @e2e",
+    "test:admin-screens": "cross-env TEST_ENV=staging playwright test --grep @admin-ui",
+    "test:client-screens": "cross-env TEST_ENV=staging playwright test --grep @client-ui",
+    "test:templates": "cross-env TEST_ENV=staging playwright test --grep @templates",
+    "test:bulk": "cross-env TEST_ENV=staging playwright test --grep @bulk",
+    "test:negative": "cross-env TEST_ENV=staging playwright test --grep @negative",
     "test:production": "cross-env TEST_ENV=production playwright test --project=smoke-admin --project=smoke-client --project=smoke-api",
     "report": "playwright show-report",
     "install:browsers": "playwright install --with-deps chromium"
