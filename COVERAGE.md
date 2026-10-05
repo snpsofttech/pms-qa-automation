@@ -105,7 +105,7 @@ Status legend: ✅ covered · 🟡 partial (create only / no negatives) · ❌ g
 ### 2.5 Proposals / Engagement Letters  `@proposals @admin-ui`
 | Feature | Tags | Status | Notes |
 |---|---|---|---|
-| Create proposal (multi-step wizard) | `@proposals @happy` | 🟡 | simple create in workflow; full wizard steps ❌ |
+| Create proposal (multi-step wizard) | `@proposals @happy` | 🔨 | create-proposal.spec FIXME — per-step rich editors + step toggles (heavy) |
 | Add/edit services & invoice line items | `@proposals @happy @edge` | ❌ | ServicesInvoicesStep, save-as-service |
 | **Send for signature** | `@proposals @happy` | ❌ | your #6 (proposal side) |
 | Delete proposal | `@proposals @happy` | ❌ | |
