@@ -54,7 +54,7 @@ Status legend: ✅ covered · 🟡 partial (create only / no negatives) · ❌ g
 | Client-type toggle (Individual/Company field vis) | `@accounts @happy` | ✅ | account-contact-drawer.spec |
 | Edit account | `@accounts @happy` | ❌ | AccountForm edit |
 | Delete account | `@accounts @negative` | ❌ | + delete w/ dependent jobs/docs |
-| Account dashboard tabs render | `@accounts @admin-ui` | ❌ | Overview/Info/Docs/Comm/Organizers/Invoices/Email/Proposals/Notes/Workflow |
+| Account dashboard tabs + Info render | `@accounts @admin-ui` | ✅ | account-info.spec (open account → Info tab) |
 | Tag assignment (react-select) | `@accounts @happy` | ✅ | in business-workflow |
 | Notes CRUD | `@accounts @happy` | ❌ | AccountDashboard/Notes |
 | Create contact (New Contact drawer) | `@contacts @happy @negative @edge` | ✅ | create-contact.spec (5 cases: required, all-fields, first-name-req, manual name, multi-phone) |
@@ -96,7 +96,7 @@ Status legend: ✅ covered · 🟡 partial (create only / no negatives) · ❌ g
 ### 2.4 Organizers  `@organizers @admin-ui`
 | Feature | Tags | Status | Notes |
 |---|---|---|---|
-| **Create organizer (from template)** | `@organizers @happy` | 🟡 | assign done in workflow; create-from-template ❌ (your #2) |
+| Create organizer (from template) | `@organizers @happy` | 🔨 | create-organizer.spec FIXME — no organizer template exists to select |
 | **Delete organizer** | `@organizers @happy` | ❌ | your #2 |
 | Send organizer to client | `@organizers @happy` | 🟡 | covered via workflow |
 | Organizer **template** CRUD + sections | `@organizers @templates @happy` | ❌ | OrganizerTemplate |
@@ -125,7 +125,7 @@ Status legend: ✅ covered · 🟡 partial (create only / no negatives) · ❌ g
 ### 2.7 Documents / Folders  `@documents @admin-ui`  (detailed inventory)
 | Feature | Tags | Status | Notes |
 |---|---|---|---|
-| Folder create / rename / move / delete | `@documents @happy` | ❌ | drawers |
+| Folder create (rename/move/delete later) | `@documents @happy` | 🟡 | create-folder.spec (create ✅) |
 | File upload (≤50MB, rejects audio/video) | `@documents @happy @negative` | 🟡 | upload done in doc-approval helper; UI drawer + validation ❌ |
 | Folder upload (zip client-side) | `@documents @happy` | ❌ | FolderUploadDrawer |
 | Apply folder template to account | `@documents @templates @happy` | ❌ | double-error-UI edge |
@@ -135,7 +135,7 @@ Status legend: ✅ covered · 🟡 partial (create only / no negatives) · ❌ g
 | Invoice-lock / payment-gated document | `@documents @payments` | 🚫 | depends on payment (AffiniPay) — excluded |
 | Lock / unlock file & folder | `@documents @happy` | ❌ | |
 | Bulk: move / trash / lock / download | `@documents @bulk @happy` | ❌ | select-all cascade |
-| Trash: restore | `@documents @happy` | ❌ | your #6 area (Trash tab) |
+| Trash: page loads (restore/delete later) | `@documents @happy` | 🟡 | trash.spec (page renders ✅) |
 | Trash: permanent delete (type-DELETE) | `@documents @negative` | ❌ | 60d text vs 2h countdown = defect |
 | Document viewer (pdf/office/img/txt, zoom/rotate) | `@documents @admin-ui @edge` | ❌ | keyboard shortcuts |
 | Audit trail view | `@documents @admin-ui` | ❌ | |
@@ -146,15 +146,15 @@ Status legend: ✅ covered · 🟡 partial (create only / no negatives) · ❌ g
 | Template type | Tags | Status | Notes |
 |---|---|---|---|
 | Task template | `@templates @happy` | ❌ | TasksTemp |
-| Email template | `@templates @happy` | ❌ | EmailTemp |
+| Email template | `@templates @happy` | ✅ | email-template.spec (name + sender + subject) |
 | Job template | `@templates @happy` | ✅ | job-template.spec (Firm Templates → Jobs tab → create) |
-| Client-facing job status template | `@templates @happy` | ❌ | ClientFacingJobTemp |
-| Folder template (+ file upload, tree) | `@templates @documents @happy` | ❌ | FolderTemp |
-| Chat template | `@templates @happy` | ❌ | ChatTemp |
+| Client-facing job status template | `@templates @happy` | ✅ | client-facing-status.spec (color + name + desc) |
+| Folder template | `@templates @documents @happy` | ✅ | folder-template.spec (name → Create) |
+| Chat template | `@templates @happy` | ✅ | chat-template.spec (name + sender + subject) |
 | Invoice template | `@templates @invoices @happy` | ❌ | (2.6) |
 | Organizer template | `@templates @organizers @happy` | ❌ | (2.4) |
 | Proposal template | `@templates @proposals @happy` | ❌ | (2.5) |
-| Pipeline template (+ stages/automations) | `@templates @pipelines @happy` | ❌ | (2.2) |
+| Pipeline template | `@templates @pipelines @happy` | ✅ | pipeline-template.spec (name + availableTo + 2 stages) |
 | Tags | `@templates @happy` | ✅ | tags.spec (Add Tag: name + color → Create) |
 | Common: duplicate / delete / delete-when-referenced | `@templates @negative` | ❌ | |
 
