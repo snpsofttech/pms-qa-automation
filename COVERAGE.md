@@ -96,7 +96,7 @@ Status legend: ✅ covered · 🟡 partial (create only / no negatives) · ❌ g
 ### 2.4 Organizers  `@organizers @admin-ui`
 | Feature | Tags | Status | Notes |
 |---|---|---|---|
-| Create organizer (from template) | `@organizers @happy` | 🔨 | create-organizer.spec FIXME — no organizer template exists to select |
+| Create organizer (from template) | `@organizers @happy` | ✅ | create-organizer.spec (select template → Create) |
 | **Delete organizer** | `@organizers @happy` | ❌ | your #2 |
 | Send organizer to client | `@organizers @happy` | 🟡 | covered via workflow |
 | Organizer **template** CRUD + sections | `@organizers @templates @happy` | ❌ | OrganizerTemplate |
@@ -151,8 +151,8 @@ Status legend: ✅ covered · 🟡 partial (create only / no negatives) · ❌ g
 | Client-facing job status template | `@templates @happy` | ✅ | client-facing-status.spec (color + name + desc) |
 | Folder template | `@templates @documents @happy` | ✅ | folder-template.spec (name → Create) |
 | Chat template | `@templates @happy` | ✅ | chat-template.spec (name + sender + subject) |
-| Invoice template | `@templates @invoices @happy` | ❌ | (2.6) |
-| Organizer template | `@templates @organizers @happy` | ❌ | (2.4) |
+| Invoice template | `@templates @invoices @happy` | ✅ | invoice-template.spec (name + payment + line item) |
+| Organizer template | `@templates @organizers @happy` | ✅ | organizer-template.spec (name + organizer + section) |
 | Proposal template | `@templates @proposals @happy` | ❌ | (2.5) |
 | Pipeline template | `@templates @pipelines @happy` | ✅ | pipeline-template.spec (name + availableTo + 2 stages) |
 | Tags | `@templates @happy` | ✅ | tags.spec (Add Tag: name + color → Create) |

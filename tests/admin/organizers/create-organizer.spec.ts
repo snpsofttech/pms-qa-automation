@@ -3,20 +3,16 @@ import { navSidebar } from '../../../helpers/adminNav';
 import { firstAccountId } from '../../../helpers/jobsData';
 
 /**
- * Create Organizer — P1 happy. Account → Organizers tab → New Organizer →
- * name → Create. (The sheet's "from template" variant needs an organizer
- * template; none exist in this tenant, so this covers the name-only create.)
+ * Create Organizer — P1 happy. Account → Organizers → New Organizer → select an
+ * organizer template → name → Create. Requires >= 1 organizer template to exist
+ * (organizer-template.spec creates one; templates are tenant-wide).
  */
 const RUN = Date.now().toString(36);
 
 test.describe('Create Organizer @organizers @admin-ui', () => {
   test.describe.configure({ timeout: 150_000 });
 
-  // FIXME: name-only create does not complete; the "from template" flow needs
-  // an organizer template, and none exist in this tenant (the Organizer
-  // Template select is empty). Seed an organizer template first (heavy editor:
-  // sections + questions) or add an API seed, then re-enable.
-  test.fixme('Create organizer for the account @happy', async ({ adminPage, adminSession, request }) => {
+  test('Create organizer from template @happy', async ({ adminPage, adminSession, request }) => {
     const acct = await firstAccountId(request, adminSession);
     await navSidebar(adminPage, 'Clients', 'Accounts', /activeaccounts/);
     await adminPage.waitForTimeout(1000);
@@ -27,6 +23,19 @@ test.describe('Create Organizer @organizers @admin-ui', () => {
 
     await adminPage.getByRole('button', { name: 'New Organizer', exact: true }).click();
     await adminPage.getByPlaceholder('Organizer Name').waitFor({ state: 'visible', timeout: 15_000 });
+
+    // Select an organizer template. Comboboxes: [0] global search, [1] Accounts
+    // (pre-filled), [2] Organizer Template (shows "None" by default).
+    await adminPage.locator('[role=combobox]').nth(2).click();
+    await adminPage.waitForTimeout(600);
+    await adminPage.getByRole('option').filter({ hasText: /QA_AUTO_OrgTmpl|organizer|tax/i }).first()
+      .click({ timeout: 8_000 })
+      .catch(async () => {
+        // Fall back to the first non-"None" option.
+        await adminPage.getByRole('option').nth(1).click({ timeout: 6_000 }).catch(() => {});
+      });
+    await adminPage.keyboard.press('Escape').catch(() => {});
+
     await adminPage.getByPlaceholder('Organizer Name').fill(`QA_AUTO_Organizer_${RUN}`);
     await adminPage.getByRole('button', { name: 'Create', exact: true }).click();
 

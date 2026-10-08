@@ -5,6 +5,7 @@ import { firstAccountId } from '../../../helpers/jobsData';
 /**
  * Create Proposal — P1 happy (via Billing → Proposals & Els → New). Multi-step
  * wizard: General (name/account/team) → Introduction → Terms → Services → Submit.
+ * Each middle step gates "Next" on a title input + a rich-text editor.
  */
 const RUN = Date.now().toString(36);
 
@@ -20,12 +21,12 @@ async function pickCombo(page: any, triggerText: string, type?: string) {
 test.describe('Create Proposal @proposals @admin-ui', () => {
   test.describe.configure({ timeout: 180_000 });
 
-  // FIXME: multi-step wizard with per-step rich-text editors (Introduction/
-  // Terms titles + editors gate "Next") and step-enable toggles that aren't
-  // reliably targetable yet. Reaches the General step; needs dedicated
-  // step-by-step handling (or robust toggle-off of optional steps). Heavy
-  // editor — grouped with the Invoice/Organizer template editors for a
-  // focused pass.
+  // FIXME: reaches the Introduction step; its rich-text DESCRIPTION editor does
+  // not accept programmatic input (keyboard.type, .fill(), pressSequentially all
+  // leave "Introduction description is required"), so "Next" stays gated. A
+  // Lexical/TipTap-style controlled editor — needs editor-specific input
+  // (dispatch beforeinput/InputEvent, or drive the editor API). General step +
+  // title fields work; only the per-step rich editors block it.
   test.fixme('Create proposal via Billing @happy', async ({ adminPage, adminSession, request }) => {
     const acct = await firstAccountId(request, adminSession);
     await navSidebar(adminPage, 'Billing', 'Proposals&Els', /proposalsandels/);
@@ -37,28 +38,45 @@ test.describe('Create Proposal @proposals @admin-ui', () => {
     // General
     await adminPage.getByPlaceholder('Proposal name (visible to clients)').fill(`QA_AUTO_Proposal_${RUN}`);
     await pickCombo(adminPage, 'Select an account...', acct.name);
-    // Team Members (the remaining empty combobox) — pick first option.
     await adminPage.locator('[role=combobox]').last().click();
     await adminPage.waitForTimeout(400);
     await adminPage.getByRole('option').first().click({ timeout: 8_000 }).catch(() => {});
     await adminPage.keyboard.press('Escape').catch(() => {});
-
-    // Disable the optional steps (Introduction, Terms, Payment) so the wizard
-    // collapses to General → Services → Submit. Keep "Services & Invoices" on.
-    for (const label of ['Introduction Step', 'Terms Step', 'Payment Step']) {
-      const sw = adminPage.getByText(label, { exact: true }).locator('xpath=following::button[@role="switch"][1]').first();
-      if (await sw.isChecked().catch(() => false)) await sw.click().catch(() => {});
-    }
     await adminPage.getByRole('button', { name: 'Next', exact: true }).click();
-    await adminPage.waitForTimeout(1200);
+    await adminPage.waitForTimeout(1000);
 
-    // Services step: add a line item if possible, then Submit.
+    // Middle steps (Introduction, Terms): fill the step's title placeholder +
+    // its aria-labeled rich-text editor, then advance, until Submit appears.
+    const titlePlaceholders = [/enter introduction title/i, /enter terms title/i, /title/i];
+    for (let i = 0; i < 4; i++) {
+      if (await adminPage.getByRole('button', { name: /submit proposal/i }).first().isVisible().catch(() => false)) break;
+      for (const ph of titlePlaceholders) {
+        const title = adminPage.getByPlaceholder(ph).first();
+        if (await title.isVisible().catch(() => false)) { await title.fill(`QA Section ${i}`).catch(() => {}); break; }
+      }
+      const editor = adminPage.getByRole('textbox', { name: /rich text editor/i }).first();
+      if (await editor.isVisible().catch(() => false)) {
+        await editor.click().catch(() => {});
+        // Controlled editor: .fill() dispatches proper input events; fall back
+        // to pressSequentially if needed.
+        await editor.fill('QA automation content.').catch(async () => {
+          await editor.pressSequentially('QA automation content.').catch(() => {});
+        });
+        await adminPage.waitForTimeout(400);
+      }
+      const next = adminPage.getByRole('button', { name: 'Next', exact: true }).first();
+      if (await next.isVisible().catch(() => false)) { await next.click().catch(() => {}); await adminPage.waitForTimeout(1200); }
+      else break;
+    }
+
+    // Services step: add a line item, then Submit.
     const addItem = adminPage.getByRole('button', { name: /line item|add item|add service/i }).first();
     if (await addItem.isVisible().catch(() => false)) {
       await addItem.click().catch(() => {});
       await adminPage.getByPlaceholder(/product or service/i).first().fill('QA Service').catch(() => {});
       await adminPage.getByPlaceholder('0.00').first().fill('500').catch(() => {});
     }
+    await adminPage.keyboard.press('Escape').catch(() => {});
     await adminPage.getByRole('button', { name: /submit proposal/i }).first().click();
     await expect(adminPage.getByText(/proposal submitted successfully/i).first()).toBeVisible({ timeout: 20_000 });
   });
